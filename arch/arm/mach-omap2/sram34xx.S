@@ -257,12 +257,14 @@ omap3_sdrc_dlla_ctrl:
 	.word OMAP34XX_SDRC_REGADDR(SDRC_DLLA_CTRL)
 core_m2_mask_val:
 	.word 0x07FFFFFF
+#ifdef CONFIG_FB_OMAP2_32_BPP
 omap3_cm_iclk_dss:
 	.word OMAP34XX_CM_REGADDR(OMAP3430_DSS_MOD, CM_ICLKEN)
 omap3_dispc_ctrl:
 	.word DISPC_CONTROL_P
 omap3_dispc_irq_st:
 	.word DISPC_IRQSTATUS_P
+#endif
 
 ENTRY(omap3_sram_configure_core_dpll_sz)
 	.word	. - omap3_sram_configure_core_dpll
