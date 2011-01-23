@@ -417,7 +417,7 @@ static struct regulator_consumer_supply boxer_vdds_dsi_supply = {
 };
 
 #ifdef CONFIG_FB_OMAP2
-static struct resource boxer_vout_resource[2];
+static struct resource boxer_vout_resource[2] = { };
 //static struct resource boxer_vout_resource[3 - CONFIG_FB_OMAP2_NUM_FBS] = {
 //};
 #else
