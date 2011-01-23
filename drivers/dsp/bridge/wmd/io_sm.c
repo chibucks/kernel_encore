@@ -1928,8 +1928,8 @@ DSP_STATUS PrintDspTraceBuffer(struct WMD_DEV_CONTEXT *hWmdContext)
 		if (DSP_FAILED(status))
 			goto func_end;
 		/* Pack and do newline conversion */
-		pr_info("DSP Trace Buffer Begin:\n"
-			 "=======================\n%s\n", pszBuf);
+		pr_info("%s: DSP Trace Buffer Begin:\n"
+			 "=======================\n%s\n", __func__, pszBuf);
 		/* convert to offset */
 			trace_cur_pos = trace_cur_pos - ulTraceBegin;
 		if (ulNumBytes) {

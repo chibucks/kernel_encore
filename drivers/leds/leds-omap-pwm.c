@@ -49,6 +49,11 @@ static inline struct omap_pwm_led *work_to_omap_pwm_led(struct work_struct *work
 
 static void omap_pwm_led_set_blink(struct omap_pwm_led *led)
 {
+	int def_on = 1;
+
+	if ( led->pdata )
+		def_on = led->pdata->def_on;
+
 	if (!led->powered)
 		return;
 
@@ -61,12 +66,14 @@ static void omap_pwm_led_set_blink(struct omap_pwm_led *led)
 		omap_dm_timer_stop(led->blink_timer);
 		omap_dm_timer_set_load(led->blink_timer, 1, -load_reg);
 		omap_dm_timer_set_match(led->blink_timer, 1, -cmp_reg);
-		omap_dm_timer_set_pwm(led->blink_timer, 1, 1,
+		omap_dm_timer_set_pwm(led->blink_timer, 
+					  def_on, 1,
 				      OMAP_TIMER_TRIGGER_OVERFLOW_AND_COMPARE);
 		omap_dm_timer_write_counter(led->blink_timer, -2);
 		omap_dm_timer_start(led->blink_timer);
 	} else {
-		omap_dm_timer_set_pwm(led->blink_timer, 1, 1,
+		omap_dm_timer_set_pwm(led->blink_timer, 
+					  def_on, 1,
 				      OMAP_TIMER_TRIGGER_OVERFLOW_AND_COMPARE);
 		omap_dm_timer_stop(led->blink_timer);
 	}
@@ -99,11 +106,19 @@ static void omap_pwm_led_power_on(struct omap_pwm_led *led)
 
 static void omap_pwm_led_power_off(struct omap_pwm_led *led)
 {
+	int def_on = 1;
+
 	if (!led->powered)
 		return;
 	led->powered = 0;
 
+	if ( led->pdata )
+		def_on = led->pdata->def_on;
+
 	/* Everything off */
+	omap_dm_timer_set_pwm(led->intensity_timer, 
+				  def_on ? 0 : 1, 1,
+				  OMAP_TIMER_TRIGGER_OVERFLOW_AND_COMPARE);
 	omap_dm_timer_stop(led->intensity_timer);
 	omap_dm_timer_disable(led->intensity_timer);
 
@@ -119,20 +134,33 @@ static void omap_pwm_led_power_off(struct omap_pwm_led *led)
 static void omap_pwm_led_set_pwm_cycle(struct omap_pwm_led *led, int cycle)
 {
 	int n;
+	unsigned int timerval;
+	int def_on = 1;
+
+	if ( led->pdata )
+		def_on = led->pdata->def_on;
 
 	if (cycle == 0)
 		n = 0xff;
-	else	n = cycle - 1;
+	else	
+		n = cycle - 1;
 
 	if (cycle == LED_FULL) {
-		omap_dm_timer_set_pwm(led->intensity_timer, 1, 1,
+		omap_dm_timer_set_pwm(led->intensity_timer, 
+					  def_on ? 1 : 0, 1,
 				      OMAP_TIMER_TRIGGER_OVERFLOW_AND_COMPARE);
 		omap_dm_timer_stop(led->intensity_timer);
 	} else {
-		omap_dm_timer_set_pwm(led->intensity_timer, 0, 1,
+		omap_dm_timer_set_pwm(led->intensity_timer, 
+					  def_on ? 0 : 1, 1,
 				      OMAP_TIMER_TRIGGER_OVERFLOW_AND_COMPARE);
 		omap_dm_timer_set_match(led->intensity_timer, 1,
 					(0xffffff00) | cycle);
+		/* ensure timer value is in range */
+		timerval = omap_dm_timer_read_counter(led->intensity_timer);
+		if (timerval < 0xffffff00)
+			omap_dm_timer_write_counter(led->intensity_timer, -2);
+
 		omap_dm_timer_start(led->intensity_timer);
 	}
 }
@@ -142,8 +170,10 @@ static void omap_pwm_led_set(struct led_classdev *led_cdev,
 {
 	struct omap_pwm_led *led = cdev_to_omap_pwm_led(led_cdev);
 
-	led->brightness = value;
-	schedule_work(&led->work);
+	if (value != led->brightness) {
+		led->brightness = value;
+		schedule_work(&led->work);
+	}
 }
 
 static void omap_pwm_led_work(struct work_struct *work)
@@ -154,6 +184,7 @@ static void omap_pwm_led_work(struct work_struct *work)
 		omap_pwm_led_power_on(led);
 		omap_pwm_led_set_pwm_cycle(led, led->brightness);
 	} else {
+		omap_pwm_led_set_pwm_cycle(led, led->brightness);
 		omap_pwm_led_power_off(led);
 	}
 }
@@ -248,12 +279,15 @@ static int omap_pwm_led_probe(struct platform_device *pdev)
 	led->cdev.default_trigger = NULL;
 	led->cdev.name = pdata->name;
 	led->pdata = pdata;
-	led->brightness = LED_OFF;
+	led->brightness = pdata->def_brightness;
 	INIT_WORK(&led->work, omap_pwm_led_work);
 
 	dev_info(&pdev->dev, "OMAP PWM LED (%s) at GP timer %d/%d\n",
 		 pdata->name, pdata->intensity_timer, pdata->blink_timer);
-
+	 
+	if (pdata->def_brightness) {
+		led->cdev.brightness = pdata->def_brightness;
+	}
 	/* register our new led device */
 	ret = led_classdev_register(&pdev->dev, &led->cdev);
 	if (ret < 0) {
@@ -289,6 +323,12 @@ static int omap_pwm_led_probe(struct platform_device *pdev)
 		if(ret)
 			goto error_blink3;
 
+	}
+	if (led->brightness) {
+		schedule_work(&led->work);
+	} else {
+		omap_pwm_led_power_on(led);
+		omap_pwm_led_power_off(led);
 	}
 
 	return 0;
@@ -332,6 +372,7 @@ static int omap_pwm_led_suspend(struct platform_device *pdev, pm_message_t state
 	struct omap_pwm_led *led = pdev_to_omap_pwm_led(pdev);
 
 	led_classdev_suspend(&led->cdev);
+	flush_work(&led->work);
 	return 0;
 }
 
@@ -340,6 +381,7 @@ static int omap_pwm_led_resume(struct platform_device *pdev)
 	struct omap_pwm_led *led = pdev_to_omap_pwm_led(pdev);
 
 	led_classdev_resume(&led->cdev);
+	flush_work(&led->work);
 	return 0;
 }
 #else

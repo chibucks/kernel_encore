@@ -187,41 +187,33 @@ static ssize_t vdd_opp_show(struct kobject *kobj, struct kobj_attribute *attr,
 static ssize_t vdd_opp_store(struct kobject *kobj, struct kobj_attribute *attr,
 			  const char *buf, size_t n)
 {
-	unsigned long value;
+	unsigned short value;
 	struct omap_opp *opp_table;
 
-	if (sscanf(buf, "%lu", &value) != 1)
+	if (sscanf(buf, "%hu", &value) != 1)
 		return -EINVAL;
 
 	if (attr == &vdd1_opp_attr) {
 		if (value < MIN_VDD1_OPP || value > MAX_VDD1_OPP) {
-			printk(KERN_ERR "vdd_opp_store: Invalid value\n");
+			printk(KERN_ERR "vdd_opp_store: Invalid value on VDD1 OPP\n");
 			return -EINVAL;
 		}
 		opp_table = omap_get_mpu_rate_table();
 		omap_pm_set_min_mpu_freq(&sysfs_cpufreq_dev,
 					opp_table[value].rate);
 	} else if (attr == &dsp_opp_attr) {
-		if (cpu_is_omap3630()) {
-			if (value < S65M || value > S800M) {
-				printk(KERN_ERR "dsp_opp: Invalid value\n");
-				return -EINVAL;
-			}
-		} else {
-			opp_table = omap_get_dsp_rate_table();
-			if (value < opp_table[MIN_VDD1_OPP].rate
-				|| value > opp_table[MAX_VDD1_OPP].rate) {
-				printk(KERN_ERR "dsp_opp: Invalid value\n");
-				return -EINVAL;
-			}
-		}
-		omap_pm_dsp_set_min_opp(&sysfs_dsp_dev, value);
-	} else if (attr == &vdd2_opp_attr) {
-		if (value < MIN_VDD2_OPP || (value > MAX_VDD2_OPP)) {
-			printk(KERN_ERR "vdd_opp_store: Invalid value\n");
+		if (value < MIN_VDD1_OPP || value > MAX_VDD1_OPP) {
+			//printk(KERN_ERR "vdd_opp_store: Invalid value on DSP OPP\n");
 			return -EINVAL;
 		}
-		if (cpu_is_omap3430()) {
+		opp_table = omap_get_dsp_rate_table();
+		omap_pm_dsp_set_min_opp(&sysfs_dsp_dev, opp_table[value].rate);
+	} else if (attr == &vdd2_opp_attr) {
+		if (value < MIN_VDD2_OPP || (value > MAX_VDD2_OPP)) {
+			printk(KERN_ERR "vdd_opp_store: Invalid value on VDD2 OPP\n");
+			return -EINVAL;
+		}
+		if (cpu_is_omap3430() || cpu_is_omap3621()) {
 			if (value == VDD2_OPP2)
 				omap_pm_set_min_bus_tput(&sysfs_cpufreq_dev,
 						OCP_INITIATOR_AGENT, 83*1000*4);
@@ -305,7 +297,7 @@ static ssize_t vdd_max_dsp_show(struct kobject *kobj,
 	struct omap_opp *dsp_rate;
 	if (attr == &max_dsp_frequency_attr) {
 		dsp_rate = omap_get_dsp_rate_table();
-		if (!cpu_is_omap3630())
+		if ((!cpu_is_omap3630()) || (cpu_is_omap3621()))
 			return sprintf(buf, "%ld\n",
 					dsp_rate[MAX_VDD1_OPP].rate);
 		else

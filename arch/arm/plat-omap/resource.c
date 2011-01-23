@@ -263,7 +263,12 @@ int resource_refresh(void)
 	int ret = 0;
 
 	list_for_each_entry(resp, &res_list, node) {
+		mutex_lock(&resp->resource_mutex);
+	
 		ret = update_resource_level(resp);
+
+		mutex_unlock(&resp->resource_mutex);
+	
 		if (ret)
 			break;
 	}

@@ -30,6 +30,8 @@
 
 #if defined(CONFIG_MACH_OMAP_ZOOM2) || defined(CONFIG_MACH_OMAP_ZOOM3)
 #define OMAP_MAX_NR_PORTS	4
+#elif defined(CONFIG_MACH_OMAP3621_BOXER) || defined (CONFIG_MACH_OMAP3621_EVT1A) || defined (CONFIG_MACH_OMAP_3621_EDP)
+#define OMAP_MAX_NR_PORTS	2
 #else
 #define OMAP_MAX_NR_PORTS	3
 #endif

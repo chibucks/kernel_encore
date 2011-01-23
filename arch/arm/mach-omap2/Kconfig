@@ -117,9 +117,55 @@ config MACH_OMAP_ZOOM2
 	bool "OMAP3 ZOOM2 board"
 	depends on ARCH_OMAP3 && ARCH_OMAP34XX
 
+config MACH_OMAP3630_EDP1
+	bool "OMAP3630 EDP1 board"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config MACH_OMAP3621_EDP1
+	bool "OMAP3621 EDP1 board"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config EDP3_BOARD
+	bool "Use EDP3 mainboard"
+	depends on MACH_OMAP3621_EDP1 || MACH_OMAP3630_EDP1 || MACH_OMAP3430_EDP1
+
+config MACH_OMAP3621_BOXER
+	bool "OMAP3621 BOXER board"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config MACH_SDRAM_HYNIX_H8MBX00U0MER0EM_OR_SAMSUNG_K4X4G303PB
+	bool "Hynix H8MBX00U0MER0EM DDR memory"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config MACH_SDRAM_HYNIX_H8MBX00U0MER0EM
+	bool "Hynix H8MBX00U0MER0EM DDR memory"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config MACH_SDRAM_SAMSUNG_K4X4G303PB
+	bool "Saumsung K4X4G303PB DDR memory"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config MACH_SDRAM_ELPIDA_EDD20323ABH
+	bool "Elpida EDD20323ABH DDR memory"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config MACH_OMAP3621_EVT1A
+	bool "OMAP3621 BOXER board revision EVT1A"
+	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
 config MACH_OMAP_ZOOM3
 	bool "OMAP3 ZOOM3 board"
 	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config ZOOM3_3621
+	bool "Use 3621 SOM"
+	depends on MACH_OMAP_ZOOM3
+
+config SOM3621_REV1_FIX
+	bool "SOM3621 REV1 fix"
+	depends on MACH_OMAP_ZOOM3
+	help
+	   SMC bus is not working on SOM3621 REV1. Fix I/O physical and virtual offsets.
 
 config MACH_OMAP_3630SDP
 	bool "OMAP3 3630 SDP board"
@@ -151,7 +197,7 @@ endchoice
 
 config WIFI_CONTROL_FUNC
         bool "Enable WiFi control function abstraction"
-	depends on MACH_OMAP_ZOOM2 || MACH_OMAP_ZOOM3
+	depends on MACH_OMAP_ZOOM2 || MACH_OMAP_ZOOM3 || MACH_OMAP3630_EDP1 || MACH_OMAP3621_EDP1 || MACH_OMAP3621_BOXER || MACH_OMAP3621_EVT1A
         help
           Enables Power/Reset/Carddetect function abstraction
 
@@ -195,3 +241,12 @@ config MACH_OVERO
 config MACH_OMAP3_PANDORA
 	bool "OMAP3 Pandora"
 	depends on ARCH_OMAP3 && ARCH_OMAP34XX
+
+config WLAN_POWER_EVT1
+	bool "WLAN power support"
+	depends on MACH_OMAP3621_EVT1A
+	default "y"
+	help
+		Has to be set for EVT1A board. 
+	
+	

@@ -27,6 +27,8 @@
 
 #if defined(CONFIG_MACH_OMAP_ZOOM2) || defined(CONFIG_MACH_OMAP_ZOOM3)
 #include <mach/board-zoom2.h>
+#elif defined(CONFIG_MACH_OMAP3630_EDP1) || defined(CONFIG_MACH_OMAP3621_EDP1) || defined(CONFIG_MACH_OMAP3621_BOXER) || defined(CONFIG_MACH_OMAP3621_EVT1A)
+#include <mach/board-edp1.h>
 #else
 #include <mach/board-ldp.h>
 #endif

@@ -31,6 +31,7 @@
 #include <linux/debugfs.h>
 #include <linux/io.h>
 #include <linux/device.h>
+#include <linux/dma-mapping.h>
 
 #include <mach/display.h>
 #include <mach/clock.h>
@@ -47,6 +48,7 @@ static struct {
 	struct clk      *dss_54m_fck;
 	struct clk	*dss_96m_fck;
 	unsigned	num_clks_enabled;
+	uint32_t	clut_phy;
 } core;
 
 static void dss_clk_enable_all_no_ctx(void);
@@ -120,6 +122,8 @@ static void restore_all_ctx(void)
 #ifdef CONFIG_OMAP2_DSS_DSI
 	dsi_restore_context();
 #endif
+
+	dispc_setup_clut(core.clut_phy);
 
 	dss_clk_disable_all_no_ctx();
 }
@@ -420,6 +424,31 @@ static void dss_uninitialize_debugfs(void)
 }
 #endif /* CONFIG_DEBUG_FS && CONFIG_OMAP2_DSS_DEBUG_SUPPORT */
 
+
+static int omap_dss_setup_clut(struct omap_dss_device *dssdev, dma_addr_t *phy_addr)
+{
+	void *vaddr;
+
+	if (!dssdev || !phy_addr) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	if (dssdev->clut_size && dssdev->clut_fill) {
+		vaddr = dma_alloc_coherent(NULL, dssdev->clut_size, phy_addr, GFP_KERNEL | GFP_DMA);
+		if (vaddr == NULL) {
+			printk(KERN_ERR "omapdss: can't allocate memory\n");
+			return -ENOMEM;
+		}
+
+		/* call the filler */
+		return dssdev->clut_fill(vaddr, dssdev->clut_size);
+	}
+
+	return -EINVAL;
+
+}
+
 /* PLATFORM DEVICE */
 static int omap_dss_probe(struct platform_device *pdev)
 {
@@ -513,6 +542,8 @@ static int omap_dss_probe(struct platform_device *pdev)
 		if (def_disp_name && strcmp(def_disp_name, dssdev->name) == 0)
 			pdata->default_device = dssdev;
 	}
+	if (omap_dss_setup_clut(pdata->default_device, &core.clut_phy) == 0)
+		dispc_setup_clut(core.clut_phy);
 
 	dss_clk_disable_all();
 

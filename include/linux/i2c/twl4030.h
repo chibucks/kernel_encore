@@ -371,6 +371,7 @@ enum twl4030_usb_mode {
 
 struct twl4030_usb_data {
 	enum twl4030_usb_mode	usb_mode;
+	struct regulator_consumer_supply *bci_supply;
 };
 
 struct twl4030_ins {
@@ -400,6 +401,8 @@ struct twl4030_power_data {
 	unsigned size;
 	const struct twl4030_resconfig *resource_config;
 };
+
+extern bool twl_rev_is_tps65921(void);
 
 extern int twl4030_remove_script(u8 flags);
 

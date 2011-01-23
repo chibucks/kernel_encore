@@ -106,7 +106,9 @@ static struct plat_serial8250_port serial_platform_data[] = {
 		.regshift	= 2,
 		.uartclk	= OMAP24XX_BASE_BAUD * 16,
 		.pm		= omap_serial_pm,
-	}, {
+	},
+#if !(defined(CONFIG_MACH_OMAP3621_BOXER) || defined (CONFIG_MACH_OMAP3621_EVT1A) || defined (CONFIG_MACH_OMAP_3621_EDP))
+        {
 		.membase	= IO_ADDRESS(OMAP_UART3_BASE),
 		.mapbase	= OMAP_UART3_BASE,
 		.irq		= 74,
@@ -116,6 +118,7 @@ static struct plat_serial8250_port serial_platform_data[] = {
 		.uartclk	= OMAP24XX_BASE_BAUD * 16,
 		.pm		= omap_serial_pm,
 	},
+#endif
 #define QUART_CLK (1843200)
 #if defined(CONFIG_MACH_OMAP_ZOOM2) || defined(CONFIG_MACH_OMAP_ZOOM3)
 	{
@@ -157,6 +160,7 @@ static struct resource omap2_uart2_resources[] = {
 	}
 };
 
+#if !(defined(CONFIG_MACH_OMAP3621_BOXER) || defined (CONFIG_MACH_OMAP3621_EVT1A) || defined (CONFIG_MACH_OMAP_3621_EDP))
 static struct resource omap2_uart3_resources[] = {
 	{
 		.start		= OMAP_UART3_BASE,
@@ -167,6 +171,7 @@ static struct resource omap2_uart3_resources[] = {
 		.flags		= IORESOURCE_IRQ,
 	}
 };
+#endif
 
 #if defined(CONFIG_MACH_OMAP_ZOOM2) || defined(CONFIG_MACH_OMAP_ZOOM3)
 static struct resource omap2_quaduart_resources[] = {
@@ -194,12 +199,15 @@ static struct platform_device uart2_device = {
 	.num_resources		= ARRAY_SIZE(omap2_uart2_resources),
 	.resource		= omap2_uart2_resources,
 };
+
+#if !(defined(CONFIG_MACH_OMAP3621_BOXER) || defined (CONFIG_MACH_OMAP3621_EVT1A) || defined (CONFIG_MACH_OMAP_3621_EDP))
 static struct platform_device uart3_device = {
 	.name			= "omap-uart",
 	.id			= 3,
 	.num_resources		= ARRAY_SIZE(omap2_uart3_resources),
 	.resource		= omap2_uart3_resources,
 };
+#endif
 
 #if defined(CONFIG_MACH_OMAP_ZOOM2) || defined(CONFIG_MACH_OMAP_ZOOM3)
 static struct platform_device quaduart_device = {
@@ -214,7 +222,9 @@ static struct platform_device quaduart_device = {
 static struct platform_device *uart_devices[] = {
 	&uart1_device,
 	&uart2_device,
+#if !(defined(CONFIG_MACH_OMAP3621_BOXER) || defined (CONFIG_MACH_OMAP3621_EVT1A) || defined (CONFIG_MACH_OMAP_3621_EDP))
 	&uart3_device,
+#endif
 #if defined(CONFIG_MACH_OMAP_ZOOM2) || defined(CONFIG_MACH_OMAP_ZOOM3)
 	&quaduart_device
 #endif
@@ -792,7 +802,6 @@ void __init omap_serial_init(void)
 
 	if (info == NULL)
 		return;
-
 	for (i = 0; i < OMAP_MAX_NR_PORTS; i++) {
 		struct plat_serial8250_port *p = serial_platform_data + i;
 		struct omap_uart_state *uart = &omap_uart[i];

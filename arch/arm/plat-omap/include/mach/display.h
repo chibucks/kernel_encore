@@ -484,6 +484,9 @@ struct omap_dss_device {
 	void (*platform_disable)(struct omap_dss_device *dssdev);
 	int (*set_backlight)(struct omap_dss_device *dssdev, int level);
 	int (*get_backlight)(struct omap_dss_device *dssdev);
+
+	u32 clut_size;
+	int (*clut_fill)(void *ptr, u32 size);
 };
 
 struct omap_dss_driver {

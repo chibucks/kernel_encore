@@ -35,7 +35,7 @@
 
 static struct platform_device *dspbridge_pdev;
 
-static struct dspbridge_platform_data dspbridge_pdata __initdata = {
+static struct dspbridge_platform_data dspbridge_pdata = {
 #ifdef CONFIG_BRIDGE_DVFS
 	.dsp_set_min_opp = omap_pm_dsp_set_min_opp,
 	.dsp_get_opp	 = omap_pm_dsp_get_opp,
@@ -183,7 +183,7 @@ err_out:
 }
 module_init(dspbridge_init);
 
-static void __exit dspbridge_exit(void)
+static void __ref dspbridge_exit(void)
 {
 	struct dspbridge_platform_data *pdata = &dspbridge_pdata;
 	kfree(pdata->dsp_freq_table);

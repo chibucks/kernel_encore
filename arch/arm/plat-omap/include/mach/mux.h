@@ -921,6 +921,18 @@ enum omap34xx_index {
 	U21_OMAP34XX_MCBSP3_DR,
 	V21_OMAP34XX_MCBSP3_DX,
 
+// 	/* MCBSP1*/
+// 	Y21_3430_MCBSP1_CLKR,
+// 	AA21_3430_MCBSP1_FSR,
+// 	V21_3430_MCBSP1_DX,
+// 	U21_3430_MCBSP1_DR,
+// 	T21_3430_MCBSP1_CLKS,
+// 	K26_3430_MCBSP1_FSX,
+// 	W21_3430_MCBSP1_CLKX,
+// 
+// 	/*SYS_CLKOUT2*/
+// 	AE22_3430_SYS_CLKOUT2,
+
 	/* HDQ */
 	J25_34XX_HDQ_SIO,
 
@@ -951,6 +963,9 @@ enum omap34xx_index {
 	AF26_34XX_SYS_NIRQ,
 	D25_34XX_GPIO126,
 	R8_34XX_GPIO56_TRISTATE,
+
+	/* PWM */
+	N8_34XX_GPIO58_PWM,
 };
 
 struct omap_mux_cfg {
@@ -966,14 +981,14 @@ struct omap_mux_cfg {
 extern int omap1_mux_init(void);
 extern int omap2_mux_init(void);
 extern int omap_mux_register(struct omap_mux_cfg *);
-extern int omap2_mux_register(struct omap_mux_cfg *);
+extern int omap2_mux_register(struct omap_mux_cfg *a);
 extern int omap_cfg_reg(unsigned long reg_cfg);
 extern int omap_mux_config(const char *group);
 #else
 /* boot loader does it all (no warnings from CONFIG_OMAP_MUX_WARNINGS) */
 static inline int omap1_mux_init(void) { return 0; }
 static inline int omap2_mux_init(void) { return 0; }
-static inline int omap2_mux_register(struct omap_mux_cfg *) { return 0; }
+static inline int omap2_mux_register(struct omap_mux_cfg *a) { return 0; }
 static inline int omap_cfg_reg(unsigned long reg_cfg) { return 0; }
 static inline int omap_mux_config(const char *group) { return 0; }
 #endif

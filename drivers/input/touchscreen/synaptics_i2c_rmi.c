@@ -398,7 +398,7 @@ static int synaptics_ts_probe(
 
 	ret = i2c_smbus_write_byte_data(ts->client, 0xf1, 0); /* disable interrupt */
 	if (ret < 0) {
-		printk(KERN_ERR "i2c_smbus_write_byte_data failed\n");
+		printk(KERN_ERR "i2c_smbus_write_byte_data failed %d\n", ret);
 		goto err_detect_failed;
 	}
 

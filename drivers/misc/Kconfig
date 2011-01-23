@@ -278,6 +278,12 @@ config BUILD_TI_ST
          tristate "Build option for BT shared Transport driver"
          default n
 
+config MAX9635
+    tristate "Maxim 9635 light sensor support"
+    depends on I2C
+    help
+      Say yes here to enable Maxim 9635 light sensor support.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/ti-st/Kconfig"

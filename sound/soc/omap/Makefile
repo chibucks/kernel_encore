@@ -15,6 +15,9 @@ snd-soc-sdp3430-objs := sdp3430.o
 snd-soc-omap3pandora-objs := omap3pandora.o
 snd-soc-omap3beagle-objs := omap3beagle.o
 snd-soc-zoom2-objs := zoom2.o
+snd-soc-omap3edp-objs := omap3edp.o
+snd-soc-zoom-aic3254-objs := omap3evm-aic3254.o
+snd-soc-dac3100-objs := omap3evm-dac3100.o
 
 obj-$(CONFIG_SND_OMAP_SOC_N810) += snd-soc-n810.o
 obj-$(CONFIG_SND_OMAP_SOC_OSK5912) += snd-soc-osk5912.o
@@ -25,3 +28,7 @@ obj-$(CONFIG_SND_OMAP_SOC_SDP3430) += snd-soc-sdp3430.o
 obj-$(CONFIG_SND_OMAP_SOC_OMAP3_PANDORA) += snd-soc-omap3pandora.o
 obj-$(CONFIG_SND_OMAP_SOC_OMAP3_BEAGLE) += snd-soc-omap3beagle.o
 obj-$(CONFIG_SND_OMAP_SOC_ZOOM2) += snd-soc-zoom2.o
+obj-$(CONFIG_SND_OMAP_SOC_ZOOM) += snd-soc-zoom2.o
+obj-$(CONFIG_SND_OMAP_SOC_OMAP3_EDP) += snd-soc-omap3edp.o
+obj-$(CONFIG_SND_OMAP_SOC_ZOOM_AIC3254) += snd-soc-zoom-aic3254.o
+obj-$(CONFIG_SND_OMAP_SOC_DAC3100) += snd-soc-dac3100.o

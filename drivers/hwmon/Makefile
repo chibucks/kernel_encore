@@ -83,6 +83,7 @@ obj-$(CONFIG_SENSORS_W83L785TS)	+= w83l785ts.o
 obj-$(CONFIG_SENSORS_TSC210X)	+= tsc210x_sensors.o
 obj-$(CONFIG_SENSORS_W83L786NG)	+= w83l786ng.o
 obj-$(CONFIG_SENSORS_OMAP34XX)  += omap34xx_temp.o
+obj-$(CONFIG_SENSORS_ENCORE_ALS)  += encore_lightsensor.o
 
 ifeq ($(CONFIG_HWMON_DEBUG_CHIP),y)
 EXTRA_CFLAGS += -DDEBUG

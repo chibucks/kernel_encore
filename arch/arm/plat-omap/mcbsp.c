@@ -88,6 +88,45 @@ static void omap_mcbsp_dump_reg(u8 id)
 	dev_dbg(mcbsp->dev, "***********************\n");
 }
 
+static void AudioRecovery_mcbsp_dump(struct omap_mcbsp *mcbsp)
+{
+	dev_err(mcbsp->dev, "**** McBSP%d regs ****\n", mcbsp->id);
+	dev_err(mcbsp->dev, "DRR2:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, DRR2));
+	dev_err(mcbsp->dev, "DRR1:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, DRR1));
+	dev_err(mcbsp->dev, "DXR2:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, DXR2));
+	dev_err(mcbsp->dev, "DXR1:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, DXR1));
+	dev_err(mcbsp->dev, "SPCR2: 0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, SPCR2));
+	dev_err(mcbsp->dev, "SPCR1: 0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, SPCR1));
+	dev_err(mcbsp->dev, "RCR2:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, RCR2));
+	dev_err(mcbsp->dev, "RCR1:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, RCR1));
+	dev_err(mcbsp->dev, "XCR2:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, XCR2));
+	dev_err(mcbsp->dev, "XCR1:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, XCR1));
+	dev_err(mcbsp->dev, "SRGR2: 0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, SRGR2));
+	dev_err(mcbsp->dev, "SRGR1: 0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, SRGR1));
+	dev_err(mcbsp->dev, "PCR0:  0x%04x\n",
+			OMAP_MCBSP_READ(mcbsp->io_base, PCR0));
+	dev_err(mcbsp->dev, "***********************\n");
+}
+
+
+/* AUDIO NOISE ISSUE ================================= */
+extern void AudioRecovery_dump (void);
+extern void AudioRecovery_recovery (void);
+int AudioRecovery_counter = 0;
+
+/* =================================================== */
 static irqreturn_t omap_mcbsp_tx_irq_handler(int irq, void *dev_id)
 {
 	struct omap_mcbsp *mcbsp_tx = dev_id;
@@ -99,6 +138,25 @@ static irqreturn_t omap_mcbsp_tx_irq_handler(int irq, void *dev_id)
 	if (irqst_spcr2 & XSYNC_ERR) {
 		dev_err(mcbsp_tx->dev, "TX Frame Sync Error! : 0x%x\n",
 			irqst_spcr2);
+
+		/* AUDIO NOISE ISSUE  =================================== */
+		if (AudioRecovery_counter++ > 10 )
+		{	
+			/* STEP 1: Dump McBSP register */
+			AudioRecovery_mcbsp_dump(mcbsp_tx);
+	
+			/* STEP 2: Dump Audio Codec register */
+			AudioRecovery_dump();
+
+			/* STEP 3: Recover Audio Codec */
+			AudioRecovery_recovery();
+
+			/* reset counter */
+			AudioRecovery_counter = 0;
+		}
+
+		/* ====================================================== */
+
 		/* Writing zero to XSYNC_ERR clears the IRQ */
 		OMAP_MCBSP_WRITE(mcbsp_tx->io_base, SPCR2,
 			irqst_spcr2 & ~(XSYNC_ERR));

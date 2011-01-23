@@ -22,7 +22,6 @@
 #include <linux/jiffies.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
-#include <linux/spinlock.h>
 
 #include <asm/io.h>
 #include <asm/mach-types.h>
@@ -36,12 +35,8 @@
 #error "This file is OMAP bus glue.  CONFIG_OMAP must be defined."
 #endif
 
-#define OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT	3
-
 extern int usb_disabled(void);
 extern int ocpi_enable(void);
-
-spinlock_t     lock;
 
 /* Define USBHOST clocks for clock management */
 struct ohci_omap_clock_defs {
@@ -121,7 +116,6 @@ static int usb_hcd_omap_probe(const struct hc_driver *driver,
 {
 	int retval;
 	int i;
-	unsigned long flags;
 	u32 uhh_hostconfig_value;
 	u8 ohci_port_enable_mask = 0;
 	struct usb_hcd *hcd = 0;
@@ -140,7 +134,6 @@ static int usb_hcd_omap_probe(const struct hc_driver *driver,
 		return -ENODEV;
 	}
 
-	spin_lock_init(&lock);
 	hcd = usb_create_hcd(driver, &pdev->dev, pdev->dev.bus_id);
 	if (!hcd) {
 		retval = -ENOMEM;
@@ -205,7 +198,6 @@ static int usb_hcd_omap_probe(const struct hc_driver *driver,
 		return PTR_ERR(ohci_clocks->usbtll_ick_clk);
 	}
 
-	spin_lock_irqsave(&lock, flags);
 	clk_enable(ohci_clocks->usbtll_ick_clk);
 
 	ohci_clocks->suspended = 0;
@@ -221,20 +213,15 @@ static int usb_hcd_omap_probe(const struct hc_driver *driver,
 	/* perform TLL soft reset, and wait until reset is complete */
 	omap_writel(1 << OMAP_USBTLL_SYSCONFIG_SOFTRESET_SHIFT,
 				OMAP_USBTLL_SYSCONFIG);
-
-	omap_readl(OMAP_USBTLL_SYSCONFIG);
-
 	/* Wait for TLL reset to complete */
 	while (!(omap_readl(OMAP_USBTLL_SYSSTATUS) &
 			(1 << OMAP_USBTLL_SYSSTATUS_RESETDONE_SHIFT)));
-
-	spin_unlock_irqrestore(&lock, flags);
 
 	/* smart idle mode */
 	omap_writel((1 << OMAP_USBTLL_SYSCONFIG_ENAWAKEUP_SHIFT) |
 			(2 << OMAP_USBTLL_SYSCONFIG_SIDLEMODE_SHIFT) |
 			(0 << OMAP_USBTLL_SYSCONFIG_CACTIVITY_SHIFT) |
-			(0 << OMAP_USBTLL_SYSCONFIG_AUTOIDLE_SHIFT),
+			(1 << OMAP_USBTLL_SYSCONFIG_AUTOIDLE_SHIFT),
 						OMAP_USBTLL_SYSCONFIG);
 
 
@@ -454,7 +441,6 @@ err0:
 static inline void
 usb_hcd_omap_remove(struct usb_hcd *hcd, struct platform_device *pdev)
 {
-	unsigned long flags;
 	struct ohci_omap_clock_defs *ohci_clocks;
 	struct ohci_hcd		*ohci = hcd_to_ohci (hcd);
 
@@ -468,8 +454,7 @@ usb_hcd_omap_remove(struct usb_hcd *hcd, struct platform_device *pdev)
 	}
 	iounmap(hcd->regs);
 	//release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
-
-	spin_lock_irqsave(&lock, flags);
+	usb_put_hcd(hcd);
 
 	/* Reset OMAP modules for insmod/rmmod to work */
 	omap_writel((1 << 1), OMAP_UHH_SYSCONFIG);
@@ -482,8 +467,6 @@ usb_hcd_omap_remove(struct usb_hcd *hcd, struct platform_device *pdev)
 	omap_writel((1<<1), OMAP_USBTLL_SYSCONFIG);
 	while (!(omap_readl(OMAP_USBTLL_SYSSTATUS) & (1<<0)));
 	pr_debug("TLL RESET DONE");
-
-	spin_unlock_irqrestore(&lock, flags);
 
 	if (ohci_clocks->usbtll_fck_clk != NULL) {
 		clk_disable(ohci_clocks->usbtll_fck_clk);
@@ -514,51 +497,8 @@ usb_hcd_omap_remove(struct usb_hcd *hcd, struct platform_device *pdev)
 		clk_put(ohci_clocks->usbtll_ick_clk);
 		ohci_clocks->usbtll_ick_clk = NULL;
 	}
-
-	usb_put_hcd(hcd);
 }
 /*-------------------------------------------------------------------------*/
-static void ohci_context_restore(void);
-
-static irqreturn_t ohci_omap_irq(struct usb_hcd *hcd)
-{
-	u32 usbtll_sysconfig, uhh_sysconfig;
-	struct ohci_omap_clock_defs *ohci_clocks;
-	struct ohci_hcd *ohci = hcd_to_ohci(hcd);
-	int ints;
-
-	ohci_clocks = (struct ohci_omap_clock_defs *)
-			(((char *)hcd_to_ohci(hcd)) + sizeof(struct ohci_hcd));
-
-
-	if (unlikely(ohci_clocks->suspended)) {
-		printk(KERN_DEBUG "%s: OHCI IRQ triggered with clocks disabled\n", __func__);
-		clk_enable(ohci_clocks->usbtll_fck_clk);
-		ohci_context_restore();
-
-		clk_enable(ohci_clocks->usbhost_ick_clk);
-		clk_enable(ohci_clocks->usbhost2_120m_fck_clk);
-		clk_enable(ohci_clocks->usbhost1_48m_fck_clk);
-		ohci_clocks->suspended = 0;
-
-		/* Need to set back to NoStandby,Noidle
-		 * FIXME: Maybe SmartIdle, SmartStandby will also work
-		 */
-
-		usbtll_sysconfig = omap_readl(OMAP_USBTLL_SYSCONFIG);
-		usbtll_sysconfig &= ~(3 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		usbtll_sysconfig |= (1 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(usbtll_sysconfig, OMAP_USBTLL_SYSCONFIG);
-
-		uhh_sysconfig = omap_readl(OMAP_UHH_SYSCONFIG);
-		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
-		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
-		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
-		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(uhh_sysconfig, OMAP_UHH_SYSCONFIG);
-	}
-	return ohci_irq(hcd);
-}
 
 static int
 ohci_omap_start(struct usb_hcd *hcd)
@@ -686,10 +626,8 @@ static void ohci_context_restore(void)
 static int omap_ohci_bus_suspend(struct usb_hcd *hcd)
 {
 	struct ohci_omap_clock_defs *ohci_clocks;
-	struct ohci_hcd *ohci = hcd_to_ohci(hcd);
 	int ret = 0;
-	int ints;
-	u32 uhh_sysconfig, usbtll_sysconfig;
+	u32 uhh_sysconfig;
 
 	ohci_clocks = (struct ohci_omap_clock_defs *)
 			(((char *)hcd_to_ohci(hcd)) + sizeof(struct ohci_hcd));
@@ -698,27 +636,6 @@ static int omap_ohci_bus_suspend(struct usb_hcd *hcd)
 		ret = ohci_bus_suspend(hcd);
 		if (ret)
 			return ret;
-
-		/* Disable interrupts */
-		ohci_writel(ohci, OHCI_INTR_MIE, &ohci->regs->intrdisable);
-		(void)ohci_readl(ohci, &ohci->regs->intrdisable);
-
-		/* Make sure any pending interrupts are cleared */
-		ints = ohci_readl(ohci, &ohci->regs->intrstatus);
-		ints &=  ohci_readl(ohci, &ohci->regs->intrenable);
-
-		if (ints) {
-			/*
-			 * Warn if there were any pending interrupts
-			 * and clear them
-			 */
-			ohci_writel(ohci, ints, &ohci->regs->intrstatus);
-			/* Read back to flush posted writes */
-			(void) ohci_readl(ohci, &ohci->regs->intrstatus);
-
-			printk(KERN_DEBUG "%s: cleared pending IRQs\n", __func__);
-		}
-
 		mdelay(8); /* MSTANDBY assertion delayed by ~8ms */
 
 		/* Need to set ForceStandby,ForceIdle here
@@ -730,10 +647,6 @@ static int omap_ohci_bus_suspend(struct usb_hcd *hcd)
 		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
 		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
 		omap_writel(uhh_sysconfig, OMAP_UHH_SYSCONFIG);
-
-		usbtll_sysconfig = omap_readl(OMAP_USBTLL_SYSCONFIG);
-		usbtll_sysconfig &= ~(3 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(usbtll_sysconfig, OMAP_USBTLL_SYSCONFIG);
 
 		ohci_context_save();
 		clk_disable(ohci_clocks->usbhost_ick_clk);
@@ -751,9 +664,8 @@ static int omap_ohci_bus_suspend(struct usb_hcd *hcd)
 static int omap_ohci_bus_resume(struct usb_hcd *hcd)
 {
 	struct ohci_omap_clock_defs *ohci_clocks;
-	struct ohci_hcd *ohci = hcd_to_ohci(hcd);
 	int ret = 0;
-	u32 uhh_sysconfig, usbtll_sysconfig;
+	u32 uhh_sysconfig;
 
 	ohci_clocks = (struct ohci_omap_clock_defs *)
 			(((char *)hcd_to_ohci(hcd)) + sizeof(struct ohci_hcd));
@@ -767,14 +679,11 @@ static int omap_ohci_bus_resume(struct usb_hcd *hcd)
 		clk_enable(ohci_clocks->usbhost2_120m_fck_clk);
 		clk_enable(ohci_clocks->usbhost1_48m_fck_clk);
 		ohci_clocks->suspended = 0;
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 
 		/* Need to set back to NoStandby,Noidle
 		 * FIXME: Maybe SmartIdle, SmartStandby will also work
 		 */
-		usbtll_sysconfig = omap_readl(OMAP_USBTLL_SYSCONFIG);
-		usbtll_sysconfig &= ~(3 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		usbtll_sysconfig |= (1 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(usbtll_sysconfig, OMAP_USBTLL_SYSCONFIG);
 
 		uhh_sysconfig = omap_readl(OMAP_UHH_SYSCONFIG);
 		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
@@ -782,11 +691,6 @@ static int omap_ohci_bus_resume(struct usb_hcd *hcd)
 		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
 		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
 		omap_writel(uhh_sysconfig, OMAP_UHH_SYSCONFIG);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-
-		/* Re-enable interrupts generation */
-		ohci_writel(ohci, OHCI_INTR_MIE, &ohci->regs->intrenable);
-		(void)ohci_readl(ohci, &ohci->regs->intrdisable);
 
 		ret = ohci_bus_resume(hcd);
 	}
@@ -797,7 +701,6 @@ static int omap_ohci_bus_resume(struct usb_hcd *hcd)
 static void omap_ohci_shutdown(struct usb_hcd *hcd)
 {
 	struct ohci_omap_clock_defs *ohci_clocks;
-	u32 uhh_sysconfig, usbtll_sysconfig;
 	ohci_clocks = (struct ohci_omap_clock_defs *)
 			(((char *)hcd_to_ohci(hcd)) + sizeof(struct ohci_hcd));
 
@@ -807,22 +710,6 @@ static void omap_ohci_shutdown(struct usb_hcd *hcd)
 		clk_enable(ohci_clocks->usbtll_fck_clk);
 		clk_enable(ohci_clocks->usbhost1_48m_fck_clk);
 		clk_enable(ohci_clocks->usbhost2_120m_fck_clk);
-
-		/* Need to set back to NoStandby,Noidle
-		 * FIXME: Maybe SmartIdle, SmartStandby will also work
-		 */
-		usbtll_sysconfig = omap_readl(OMAP_USBTLL_SYSCONFIG);
-		usbtll_sysconfig &= ~(3 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		usbtll_sysconfig |= (1 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(usbtll_sysconfig, OMAP_USBTLL_SYSCONFIG);
-
-		uhh_sysconfig = omap_readl(OMAP_UHH_SYSCONFIG);
-		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
-		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
-		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
-		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(uhh_sysconfig, OMAP_UHH_SYSCONFIG);
-
 		ohci_clocks->suspended = 0;
 	}
 	ohci_shutdown(hcd);
@@ -841,7 +728,7 @@ static const struct hc_driver ohci_omap_hc_driver = {
 	/*
 	 * generic hardware linkage
 	 */
-	.irq =			ohci_omap_irq,
+	.irq =			ohci_irq,
 	.flags =		HCD_USB11 | HCD_MEMORY,
 
 	/*
@@ -887,8 +774,6 @@ static int ohci_hcd_omap_drv_remove(struct platform_device *dev)
 {
 	struct usb_hcd		*hcd = platform_get_drvdata(dev);
 	struct ohci_omap_clock_defs *ohci_clocks;
-	u32 uhh_sysconfig, usbtll_sysconfig;
-
 	ohci_clocks = (struct ohci_omap_clock_defs *)
 			(((char *)hcd_to_ohci(hcd)) + sizeof(struct ohci_hcd));
 	if (ohci_clocks->suspended) {
@@ -897,21 +782,6 @@ static int ohci_hcd_omap_drv_remove(struct platform_device *dev)
 		clk_enable(ohci_clocks->usbtll_fck_clk);
 		clk_enable(ohci_clocks->usbhost1_48m_fck_clk);
 		clk_enable(ohci_clocks->usbhost2_120m_fck_clk);
-
-		/* Need to set back to NoStandby,Noidle
-		 * FIXME: Maybe SmartIdle, SmartStandby will also work
-		 */
-		usbtll_sysconfig = omap_readl(OMAP_USBTLL_SYSCONFIG);
-		usbtll_sysconfig &= ~(3 << OMAP_TLL_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(usbtll_sysconfig, OMAP_USBTLL_SYSCONFIG);
-
-		uhh_sysconfig = omap_readl(OMAP_UHH_SYSCONFIG);
-		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
-		uhh_sysconfig &= ~(3 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
-		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_MIDLEMODE_SHIFT);
-		uhh_sysconfig |= (1 << OMAP_UHH_SYSCONFIG_SIDLEMODE_SHIFT);
-		omap_writel(uhh_sysconfig, OMAP_UHH_SYSCONFIG);
-
 		ohci_clocks->suspended = 0;
 	}
 	usb_hcd_omap_remove(hcd, dev);

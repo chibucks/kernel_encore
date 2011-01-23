@@ -204,6 +204,11 @@
 #define OMAP36XX_CONTROL_PROG_IO_WKUP1 (OMAP343X_CONTROL_GENERAL_WKUP + 0x020)
 #define OMAP36XX_CONTROL_VBBLDO_EFUSE_CTRL (OMAP343X_CONTROL_GENERAL_WKUP + 0X02C)
 
+/* 36xx-only RTA - Retention till Accesss control registers and bits */
+#define OMAP36XX_CONTROL_MEM_RTA_CTRL	0x40C
+#define OMAP36XX_RTA_ENABLE		0x1
+#define OMAP36XX_RTA_DISABLE 		0x0
+
 /*
  * REVISIT: This list of registers is not comprehensive - there are more
  * that should be added.
@@ -287,6 +292,9 @@
 #define OMAP343X_SCRATCHPAD		(OMAP343X_CTRL_BASE + 0x910)
 #define OMAP343X_SCRATCHPAD_ROM_OFFSET	0x19C
 
+/* Bootloader commmand block section */
+#define OMAP343X_SCRATCHPAD_BCB         (OMAP343X_CTRL_BASE + 0x8E0)
+#define OMAP343X_SCRATCHPAD_BCB_SIZE    (0x30)
 /* OMAP36XX CONTROL FUSE */
 
 #define OMAP36XX_CONTROL_FUSE_OPP1_VDD1	(OMAP2_CONTROL_GENERAL + 0x0114)
@@ -314,6 +322,7 @@ extern void omap3_save_scratchpad_contents(void);
 extern void omap3_clear_scratchpad_contents(void);
 extern u32 *get_restore_pointer(void);
 extern u32 *get_es3_restore_pointer(void);
+extern u32 *get_omap3630_restore_pointer(void);
 extern u32 omap3_arm_context[128];
 extern void omap3_control_save_context(void);
 extern void omap3_control_restore_context(void);

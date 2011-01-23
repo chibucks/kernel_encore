@@ -1,4 +1,5 @@
 /*
+
  * MUSB OTG driver peripheral support
  *
  * Copyright 2005 Mentor Graphics Corporation
@@ -614,9 +615,9 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 	if (csr & MUSB_RXCSR_RXPKTRDY) {
 		len = musb_readw(epio, MUSB_RXCOUNT);
 		/*
-		 * Enable Mode 1 for RX transfers only for mass-storage
-		 * use-case, based on short_not_ok flag which is set only
-		 * from file_storage and f_mass_storage drivers
+		 * Enable Mode 1 for RX transfers only for g_file_storage, for
+		 * which request->short_not_ok =1. This will result in a thpt
+		 * performance gain of around 30% for g_file_storage use cases.
 		 */
 
 		if (request->short_not_ok && len == musb_ep->packet_sz)
@@ -686,10 +687,10 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 		if (use_mode_1) {
 					transfer_size = min(request->length,
 							channel->max_len);
-					musb_ep->dma->desired_mode = 1;
+                                         musb_ep->dma->desired_mode = 1 ;
 		} else {
 					transfer_size = len;
-					musb_ep->dma->desired_mode = 0;
+                                        musb_ep->dma->desired_mode = 0 ;
 		}
 
 					use_dma = c->channel_program(
@@ -1551,8 +1552,9 @@ static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 			musb->softconnect = 1;
 			musb_pullup(musb, is_on);
 		}
-	} else
+	} else {
 		stop_activity(musb, musb->gadget_driver);
+	}
 
 	spin_unlock_irqrestore(&musb->lock, flags);
 	return 0;
@@ -1772,8 +1774,10 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 		 * hosts only see fully functional devices.
 		 */
 
-		if (!is_otg_enabled(musb))
+		if (!is_otg_enabled(musb) && 
+			musb->softconnect) {
 			musb_start(musb);
+		}
 
 		spin_unlock_irqrestore(&musb->lock, flags);
 

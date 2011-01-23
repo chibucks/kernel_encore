@@ -411,7 +411,10 @@ void omap_pm_if_exit(void)
 
 u8 omap_pm_get_max_vdd1_opp()
 {
-	if (cpu_is_omap3630()) {
+
+  if (cpu_is_omap3621())
+    return VDD1_OPP3;
+	else if (cpu_is_omap3630()) {
 		switch (omap_rev_id()) {
 		case OMAP_3630:
 		default:
@@ -423,8 +426,6 @@ u8 omap_pm_get_max_vdd1_opp()
 			return VDD1_OPP3;
 		case OMAP_3630_1000:
 			return VDD1_OPP4;
-		case OMAP_3630_1200:
-			return VDD1_OPP5;
 		}
 	} else {
 		if (omap_rev() < OMAP3430_REV_ES3_1)

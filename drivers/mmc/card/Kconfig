@@ -59,3 +59,9 @@ config MMC_TEST
 
 	  This driver is only of interest to those developing or
 	  testing a host driver. Most people should say N here.
+
+config MMC_PANIC_ERR
+	bool "Panic on I/O error"
+	default n
+	help
+      Say yes here to panic on I/O errors.

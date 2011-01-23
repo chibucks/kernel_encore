@@ -276,7 +276,7 @@ int __init musb_platform_init(struct musb *musb)
 	 * MUSB AUTOIDLE don't work in 3430.
 	 * Workaround by Richard Woodruff/TI
 	 */
-	if (!cpu_is_omap3430())
+	if (!(cpu_is_omap3430()))
 		l |= AUTOIDLE;		/* enable auto idle */
 	omap_writel(l, OTG_SYSCONFIG);
 
@@ -302,6 +302,7 @@ int __init musb_platform_init(struct musb *musb)
 	x->link_restore_context = musb_link_restore_context;
 	x->link_force_active = musb_link_force_active;
 	x->link = musb;
+    x->gadget = &musb->g;
 
 	otg_put_transceiver(x);
 
@@ -463,10 +464,12 @@ void musb_platform_restore_context(struct musb *musb)
 
 	musb_writeb(musb->mregs, MUSB_INDEX,
 				musb_context.index);
-
+#ifndef CONFIG_MACH_OMAP3621_EVT1A 
+	// For Encore this is resumed via the link_state callback
+	// triggered by the twl4030 VBUS interrupt
 	omap_writel(musb_context.otg_sysconfig, OTG_SYSCONFIG);
 	omap_writel(musb_context.otg_forcestandby, OTG_FORCESTDBY);
-
+#endif
 }
 
 void musb_link_save_context(struct otg_transceiver *xceiv)

@@ -121,7 +121,12 @@ static int mmc_decode_csd(struct mmc_card *card)
 	 * v1.2 has extra information in bits 15, 11 and 10.
 	 */
 	csd_struct = UNSTUFF_BITS(resp, 126, 2);
+#if defined(CONFIG_MACH_OMAP3630_EDP1) || defined(CONFIG_MACH_OMAP3621_EDP1) || defined(CONFIG_MACH_OMAP3621_BOXER) || defined(CONFIG_MACH_OMAP3621_EVT1A)
+	/* To recognize Boxer board eMMC */
+	if (csd_struct != 1 && csd_struct != 2 && csd_struct != 3) {
+#else
 	if (csd_struct != 1 && csd_struct != 2) {
+#endif
 		printk(KERN_ERR "%s: unrecognised CSD structure version %d\n",
 			mmc_hostname(card->host), csd_struct);
 		return -EINVAL;
@@ -208,7 +213,12 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 	}
 
 	ext_csd_struct = ext_csd[EXT_CSD_REV];
+#if defined(CONFIG_MACH_OMAP3630_EDP1) || defined(CONFIG_MACH_OMAP3621_EDP1) || defined(CONFIG_MACH_OMAP3621_BOXER) || defined(CONFIG_MACH_OMAP3621_EVT1A)
+	/* To recognize Boxer board eMMC */
+	if (ext_csd_struct > 5) {
+#else
 	if (ext_csd_struct > 2) {
+#endif
 		printk(KERN_ERR "%s: unrecognised EXT_CSD structure "
 			"version %d\n", mmc_hostname(card->host),
 			ext_csd_struct);

@@ -128,13 +128,20 @@ void NTFY_Delete(struct NTFY_OBJECT *hNtfy)
 
 	/* Remove any elements remaining in list */
 	if (hNtfy->notifyList) {
+
+		(void) SYNC_EnterCS(hNtfy->hSync);
+	
 		while ((pNotify = (struct NOTIFICATION *)LST_GetHead(hNtfy->
 								notifyList))) {
 			DeleteNotify(pNotify);
 		}
 		DBC_Assert(LST_IsEmpty(hNtfy->notifyList));
 		kfree(hNtfy->notifyList);
+
+		(void) SYNC_LeaveCS(hNtfy->hSync);
 	}
+
+	
 	if (hNtfy->hSync)
 		(void)SYNC_DeleteCS(hNtfy->hSync);
 

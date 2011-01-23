@@ -31,9 +31,17 @@
 #include <asm/mach-types.h>
 
 static u8 triton_next_free_address = 0x2b;
+static uint32_t twl4030_rev;
 
 #define PWR_P1_SW_EVENTS	0x10
 #define PWR_DEVOFF	(1<<0)
+#define STOPON_PWRON (1<<6)
+
+#ifdef CONFIG_TWL4030_POWER_STOPON
+#define CONFIG_P1_SW_FEATURES    STOPON_PWRON
+#else
+#define CONFIG_P1_SW_FEATURES    0
+#endif
 
 #define PHY_TO_OFF_PM_MASTER(p)		(p - 0x36)
 #define PHY_TO_OFF_PM_RECEIVER(p)	(p - 0x5b)
@@ -65,13 +73,23 @@ static u8 triton_next_free_address = 0x2b;
 #define R_MEMORY_DATA		PHY_TO_OFF_PM_MASTER(0x5a)
 
 #define R_PROTECT_KEY		0x0E
-#define KEY_1			0xC0
-#define KEY_2			0x0C
+
+#define RESOURCE_TYPE_RECONFIG_IGNORE   0xFF
+
+#define KEY_1                  (twl_rev_is_tps65921() ? 0xFC : 0xC0)
+#define KEY_2                  (twl_rev_is_tps65921() ? 0x96 : 0x0C)
 
 /* resource configuration registers */
 
 #define DEVGROUP_OFFSET		0
 #define TYPE_OFFSET		1
+
+#define TWL_SIL_TYPE(rev)      ((rev) & 0x00FFFFFF)
+
+#define R_UNLOCK_TEST_REG      0x12
+#define TWL_EEPROM_R_UNLOCK    0x49
+
+#define TWL_SIL_TPS65921       0x77802F
 
 static u8 res_config_addrs[] = {
 	[RES_VAUX1]	= 0x17,
@@ -184,7 +202,8 @@ static int __init config_wakeup12_sequence(u8 address)
 					R_P2_SW_EVENTS);
 
 	if (machine_is_omap_3430sdp() || machine_is_omap_ldp() ||
-	    machine_is_omap_zoom2() || machine_is_omap_zoom3()) {
+	    machine_is_omap_zoom2() || machine_is_omap_zoom3() ||
+	    machine_is_omap3630_edp1() || machine_is_omap3621_edp1()) {
 		u8 uninitialized_var(data);
 		/* Disabling AC charger effect on sleep-active transitions */
 		err |= twl4030_i2c_read_u8(TWL4030_MODULE_PM_MASTER, &data,
@@ -236,19 +255,19 @@ static int __init config_warmreset_sequence(u8 address)
 	/* P1/P2/P3 enable WARMRESET */
 	err |= twl4030_i2c_read_u8(TWL4030_MODULE_PM_MASTER, &rd_data,
 					R_P1_SW_EVENTS);
-	rd_data |= ENABLE_WARMRESET;
+	rd_data |= ENABLE_WARMRESET | CONFIG_P1_SW_FEATURES;
 	err |= twl4030_i2c_write_u8(TWL4030_MODULE_PM_MASTER, rd_data,
 					R_P1_SW_EVENTS);
 
 	err |= twl4030_i2c_read_u8(TWL4030_MODULE_PM_MASTER, &rd_data,
 					R_P2_SW_EVENTS);
-	rd_data |= ENABLE_WARMRESET;
+	rd_data |= ENABLE_WARMRESET | CONFIG_P1_SW_FEATURES;
 	err |= twl4030_i2c_write_u8(TWL4030_MODULE_PM_MASTER, rd_data,
 					R_P2_SW_EVENTS);
 
 	err |= twl4030_i2c_read_u8(TWL4030_MODULE_PM_MASTER, &rd_data,
 					R_P3_SW_EVENTS);
-	rd_data |= ENABLE_WARMRESET;
+	rd_data |= ENABLE_WARMRESET | CONFIG_P1_SW_FEATURES;
 	err |= twl4030_i2c_write_u8(TWL4030_MODULE_PM_MASTER, rd_data,
 					R_P3_SW_EVENTS);
 
@@ -290,14 +309,14 @@ void twl4030_configure_resource(struct twl4030_resconfig *rconfig)
 		return;
 	}
 
-	if (rconfig->type >= 0) {
+	if (RESOURCE_TYPE_RECONFIG_IGNORE != rconfig->type) {
 		type &= ~7;
-		type |= rconfig->type;
+		type |= (rconfig->type & 7);
 	}
 
-	if (rconfig->type2 >= 0) {
+	if (RESOURCE_TYPE_RECONFIG_IGNORE != rconfig->type2) {
 		type &= ~(3 << 3);
-		type |= rconfig->type2 << 3;
+		type |= (rconfig->type2 & 3) << 3;
 	}
 
 	twl4030_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER,
@@ -381,6 +400,32 @@ int twl4030_remove_script(u8 flags)
 	return 0;
 }
 
+static void twl4030_load_rev(void)
+{
+	int err;
+
+	err = twl4030_i2c_write_u8(TWL4030_MODULE_INTBR,
+				TWL_EEPROM_R_UNLOCK, R_UNLOCK_TEST_REG);
+	if (err)
+		pr_err("TWL4030 Unable to unlock IDCODE registers\n");
+
+	err = twl4030_i2c_read(TWL4030_MODULE_INTBR, (u8 *)(&twl4030_rev), 0x0, 4);
+	if (err)
+		pr_err("TWL4030: unable to read IDCODE-%d\n", err);
+
+	err = twl4030_i2c_write_u8(TWL4030_MODULE_INTBR, 0x0, R_UNLOCK_TEST_REG);
+	if (err)
+		pr_err("TWL4030 Unable to relock IDCODE registers\n");
+}
+
+bool twl_rev_is_tps65921(void)
+{
+	if (twl4030_rev == 0)
+		twl4030_load_rev();
+
+	return TWL_SIL_TYPE(twl4030_rev) == TWL_SIL_TPS65921;
+}
+
 void __init twl4030_power_init(struct twl4030_power_data *triton2_scripts)
 {
 	int err = 0;
@@ -408,7 +453,6 @@ void __init twl4030_power_init(struct twl4030_power_data *triton2_scripts)
 			resconfig++;
 		}
 	}
-
 	if (twl4030_i2c_write_u8(TWL4030_MODULE_PM_MASTER, 0, R_PROTECT_KEY))
 		printk(KERN_ERR
 			"TWL4030 Unable to relock registers\n");

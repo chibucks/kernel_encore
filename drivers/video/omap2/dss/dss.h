@@ -335,6 +335,7 @@ int dispc_calc_clock_div(bool is_tft, unsigned long req_pck,
 int dispc_set_clock_div(struct dispc_clock_info *cinfo);
 int dispc_get_clock_div(struct dispc_clock_info *cinfo);
 void dispc_set_lcd_divisor(u16 lck_div, u16 pck_div);
+int dispc_setup_clut(u32 phy);
 
 
 /* VENC */

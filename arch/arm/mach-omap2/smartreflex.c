@@ -82,8 +82,10 @@ struct omap_sr {
 	struct clk	*clk;
 	u32		clk_length;
 	u32		req_opp_no;
-	u32		opp1_nvalue, opp2_nvalue, opp3_nvalue, opp4_nvalue;
-	u32		opp5_nvalue, opp6_nvalue;
+	u32		opp1_nvalue, opp2_nvalue, opp3_nvalue;
+#if !(cpu_is_omap3621())
+	u32		opp5_nvalue, opp6_nvalue, opp4_nvalue;
+#endif
 	u32		senp_mod, senn_mod;
 	void __iomem	*srbase_addr;
 	void __iomem	*vpbase_addr;
@@ -275,7 +277,7 @@ static inline u16 get_dsp_opp(void)
 static inline u16 get_vdd1_opp(void)
 {
 	int vdd1_opp;
-	if (cpu_is_omap3630())
+	if (cpu_is_omap3630() && (!(cpu_is_omap3621())) )
 		/*
 		 * if vdd1 opp table has any two opp's same freq than
 		 * check the dsp opp instead
@@ -334,8 +336,10 @@ static void sr_add_margin_steps(struct omap_sr *sr)
 	for (i = 1; i <= 3; i++)
 		sr1_opp_margin[i] = sr_margin_steps;
 
+#if !(cpu_is_omap3621())
 	sr1_opp_margin[4] = sr_margin_steps_1g;
 	sr1_opp_margin[5] = sr_margin_steps_1p3;
+#endif
 
 	for (i = 1; i <= MAX_VDD1_OPP; i++) {
 		pr_info("sr1_opp_margin[%d]=%ld\n", i,
@@ -358,12 +362,15 @@ static void sr_set_testing_nvalues(struct omap_sr *sr)
 			sr->opp1_nvalue = cal_test_nvalue(581, 489);
 			sr->opp2_nvalue = cal_test_nvalue(1072, 910);
 			sr->opp3_nvalue = cal_test_nvalue(1405, 1200);
+#if !(cpu_is_omap3621())
 			sr->opp4_nvalue = cal_test_nvalue(1842, 1580);
 			sr->opp5_nvalue = cal_test_nvalue(1842, 1580);
-
+#endif
 			if (sr_margin_steps || sr_margin_steps_1g)
 				sr_add_margin_steps(sr);
-		} else {
+		}
+#if !(cpu_is_omap3621())		
+		 else {
 		sr->senp_mod = 0x03;	/* SenN-M5 enabled */
 		sr->senn_mod = 0x03;
 
@@ -377,12 +384,13 @@ static void sr_set_testing_nvalues(struct omap_sr *sr)
 			sr->opp4_nvalue = cal_test_nvalue(0x964 + 0x2a0,
 							0x727 + 0x2a0);
 			sr->opp5_nvalue = cal_test_nvalue(0xacd + 0x330,
-							0x848 + 0x330);
+			                                0x848 + 0x330);		
 		}
 		if (sr->opp5_nvalue) {
 			sr->opp6_nvalue = calculate_opp_nvalue(sr->opp5_nvalue,
 			227, 379);
 		}
+#endif
 	} else if (sr->srid == SR2) {
 		if (cpu_is_omap3630()) {
 			sr->senp_mod = 0x1;
@@ -415,10 +423,12 @@ u32 sr_read_efuse_nvalues(int opp_no)
 			return omap_ctrl_readl(OMAP36XX_CONTROL_FUSE_OPP2_VDD1);
 		case VDD1_OPP3:
 			return omap_ctrl_readl(OMAP36XX_CONTROL_FUSE_OPP3_VDD1);
+#if !(cpu_is_omap3621())
 		case VDD1_OPP4:
 			return omap_ctrl_readl(OMAP36XX_CONTROL_FUSE_OPP4_VDD1);
 		case VDD1_OPP5:
 			return omap_ctrl_readl(OMAP36XX_CONTROL_FUSE_OPP5_VDD1);
+#endif
 		default:
 			pr_err("In valid sr1 opp no\n");
 			return 0;
@@ -435,6 +445,7 @@ static void sr_set_efuse_nvalues(struct omap_sr *sr)
 		if (cpu_is_omap3630()) {
 			sr->senn_mod = sr->senp_mod = 0x1;
 
+#if !(cpu_is_omap3621())
 			sr->opp5_nvalue = sr1_opp[5] =
 			   omap_ctrl_readl(OMAP36XX_CONTROL_FUSE_OPP5_VDD1);
 			if (sr->opp5_nvalue != 0x0) {
@@ -457,6 +468,8 @@ static void sr_set_efuse_nvalues(struct omap_sr *sr)
 				sr_set_testing_nvalues(sr);
 				return;
 			}
+			sr->opp5_nvalue = sr->opp4_nvalue;
+#endif
 
 			sr->opp3_nvalue = sr1_opp[3] =
 			   omap_ctrl_readl(OMAP36XX_CONTROL_FUSE_OPP3_VDD1);
@@ -503,6 +516,7 @@ static void sr_set_efuse_nvalues(struct omap_sr *sr)
 						OMAP343X_SR1_SENPENABLE_MASK) >>
 						OMAP343X_SR1_SENPENABLE_SHIFT;
 
+#if !(cpu_is_omap3621())
 			sr->opp5_nvalue = omap_ctrl_readl(
 						OMAP343X_CONTROL_FUSE_OPP5_VDD1);
 			if (sr->opp5_nvalue != 0x0) {
@@ -515,16 +529,21 @@ static void sr_set_efuse_nvalues(struct omap_sr *sr)
 			}
 			sr->opp4_nvalue = omap_ctrl_readl(
 						OMAP343X_CONTROL_FUSE_OPP4_VDD1);
+#endif
+
 			sr->opp3_nvalue = omap_ctrl_readl(
 						OMAP343X_CONTROL_FUSE_OPP3_VDD1);
 			sr->opp2_nvalue = omap_ctrl_readl(
 						OMAP343X_CONTROL_FUSE_OPP2_VDD1);
 			sr->opp1_nvalue = omap_ctrl_readl(
 						OMAP343X_CONTROL_FUSE_OPP1_VDD1);
+
+#if !(cpu_is_omap3621())
 			if (sr->opp5_nvalue) {
 				sr->opp6_nvalue = calculate_opp_nvalue(sr->opp5_nvalue,
 				227, 379);
 			}
+#endif
 		}
 	} else if (sr->srid == SR2) {
 		if (cpu_is_omap3630()) {
@@ -949,6 +968,7 @@ static int sr_enable(struct omap_sr *sr, u32 target_opp_no)
 
 	if (sr->srid == SR1) {
 		switch (target_opp_no) {
+#if !(cpu_is_omap3621())
 		case 6:
 			nvalue_reciprocal = sr->opp6_nvalue;
 			break;
@@ -958,6 +978,7 @@ static int sr_enable(struct omap_sr *sr, u32 target_opp_no)
 		case 4:
 			nvalue_reciprocal = sr->opp4_nvalue;
 			break;
+#endif
 		case 3:
 			nvalue_reciprocal = sr->opp3_nvalue;
 			break;

@@ -15,6 +15,7 @@
 #include <mach/omap-pm.h>
 #include <mach/vrfb.h>
 #include <media/videobuf-core.h>
+#include <linux/earlysuspend.h>
 
 #define YUYV_BPP        2
 #define RGB565_BPP      2
@@ -102,6 +103,12 @@ struct omap_vout_device {
 
 	/* non-NULL means streaming is in progress. */
 	bool streaming;
+
+	/* Screen state */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	bool   screen_on;
+	struct early_suspend early_suspend;
+#endif
 
 	struct v4l2_pix_format pix;
 	struct v4l2_rect crop;

@@ -24,6 +24,7 @@ obj-$(CONFIG_MENELAUS)		+= menelaus.o
 
 obj-$(CONFIG_TWL4030_CORE)	+= twl4030-core.o twl4030-irq.o
 obj-$(CONFIG_TWL4030_POWER)    += twl4030-power.o
+obj-$(CONFIG_TWL4030_BTN_STOPOFF)    += twl4030-pwrbutton-stopoff.o
 
 obj-$(CONFIG_MFD_CORE)		+= mfd-core.o
 

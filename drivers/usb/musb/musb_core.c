@@ -862,7 +862,7 @@ static irqreturn_t musb_stage2_irq(struct musb *musb, u8 int_usb,
 void musb_start(struct musb *musb)
 {
 	void __iomem	*regs = musb->mregs;
-	u8		devctl = musb_readb(regs, MUSB_DEVCTL);
+	u8 		devctl = musb_readb(regs, MUSB_DEVCTL);
 
 	DBG(2, "<== devctl %02x\n", devctl);
 
@@ -921,6 +921,10 @@ static void musb_generic_disable(struct musb *musb)
 
 	/* off */
 	musb_writeb(mbase, MUSB_DEVCTL, 0);
+#ifdef CONFIG_MACH_OMAP3621_EVT1A
+	// For Encore disable but enable HS
+	musb_writeb(mbase, MUSB_POWER, MUSB_POWER_HSENAB);
+#endif
 
 	/*  flush pending interrupts */
 	temp = musb_readb(mbase, MUSB_INTRUSB);
@@ -2201,8 +2205,10 @@ static struct platform_driver musb_driver = {
 	},
 	.remove		= __devexit_p(musb_remove),
 	.shutdown	= musb_shutdown,
+#ifdef CONFIG_PM
 	.suspend_late	= musb_suspend_late,
 	.resume_early	= musb_resume_early,
+#endif
 };
 
 /*-------------------------------------------------------------------------*/

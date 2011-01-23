@@ -264,10 +264,11 @@ static void serial_omap_stop_rx(struct uart_port *port)
 	up->port.read_status_mask &= ~UART_LSR_DR;
 	serial_out(up, UART_IER, up->ier);
 	/*Disable the UART CTS wakeup for UART1,UART2*/
+#if !(defined(CONFIG_MACH_OMAP3621_EDP) || defined(CONFIG_MACH_OMAP3621_BOXER) ||  defined(CONFIG_MACH_OMAP3621_EVT1A))
 	if ((!port->suspended && (((up->pdev->id - 1) == UART1) ||
 			((up->pdev->id  - 1) == UART2))))
 		omap_uart_cts_wakeup((up->pdev->id - 1), 0);
-
+#endif
 }
 
 static inline void receive_chars(struct uart_omap_port *up, int *status)
@@ -596,11 +597,11 @@ static int serial_omap_startup(struct uart_port *port)
 	unsigned long flags;
 	int irq_flags = 0;
 	int retval;
-
+#if !(defined(CONFIG_MACH_OMAP3621_EDP) || defined(CONFIG_MACH_OMAP3621_BOXER) ||  defined(CONFIG_MACH_OMAP3621_EVT1A))
 	/*Enable the UART CTS wakeup for UART1,UART2*/
 	if (((up->pdev->id - 1) == UART1) || ((up->pdev->id  - 1) == UART2))
 		omap_uart_cts_wakeup((up->pdev->id - 1), 1);
-
+#endif
 
 	/* Zoom2 has GPIO_102 connected to Serial device:
 	 * Active High
@@ -1587,6 +1588,7 @@ int omap_uart_cts_wakeup(int uart_no, int state)
 		 * Enable the CTS for io pad wakeup
 		 */
 		switch (uart_no) {
+
 		case UART1:
 			printk(KERN_INFO "Enabling CTS wakeup for UART1");
 			padconf_cts = 0x180;

@@ -335,8 +335,14 @@ static struct omap2_mcspi_device_config zoom2_lcd_mcspi_config = {
 static struct spi_board_info zoom2_spi_board_info[] __initdata = {
 	[0] = {
 		.modalias		= "zoom2_disp_spi",
+#ifdef CONFIG_ZOOM3_3621
+		.bus_num		= 2,
+		.chip_select		= 0,
+#else
 		.bus_num		= 1,
 		.chip_select		= 2,
+#endif
+
 		.max_speed_hz		= 375000,
 		.controller_data 	= &zoom2_lcd_mcspi_config,
 	},
@@ -375,6 +381,7 @@ static void zoom2_lcd_tv_panel_init(void)
 	omap_cfg_reg(AB1_34XX_McSPI1_CS2);
 	omap_cfg_reg(A24_34XX_GPIO94);
 
+#if defined(CONFIG_MACH_OMAP_ZOOM3) && !defined(CONFIG_ZOOM3_3621)
 	/* Production Zoom2 Board:
 	 * GPIO-96 is the LCD_RESET_GPIO
 	 */
@@ -388,6 +395,9 @@ static void zoom2_lcd_tv_panel_init(void)
 		omap_cfg_reg(T8_34XX_GPIO55);
 		lcd_panel_reset_gpio = 55;
 	}
+#else
+	lcd_panel_reset_gpio = 96;
+#endif
 
 	gpio_request(lcd_panel_reset_gpio, "lcd reset");
 	gpio_request(LCD_PANEL_QVGA_GPIO, "lcd qvga");
@@ -845,7 +855,11 @@ static struct omap_lcd_config zoom2_lcd_config __initdata = {
 };
 
 static struct omap_uart_config zoom2_uart_config __initdata = {
+#ifdef CONFIG_SOM3621_REV1_FIX
+	.enabled_uarts	= ((1 << 0) | (1 << 1) | (1 << 2)),
+#else
 	.enabled_uarts	= ((1 << 0) | (1 << 1) | (1 << 2) | (1 << 3)),
+#endif
 };
 
 static struct omap_board_config_kernel zoom2_config[] __initdata = {
@@ -994,6 +1008,8 @@ static struct twl4030_platform_data zoom2_twldata = {
 	.vpll2		= &zoom2_vdsi,
 };
 
+#define AIC3111_NAME "tlv320aic3111"
+#define AIC3111_I2CSLAVEADDRESS 0x18
 static struct i2c_board_info __initdata zoom2_i2c_bus1_info[] = {
 	{
 		I2C_BOARD_INFO("twl4030", 0x48),
@@ -1049,6 +1065,16 @@ static struct i2c_board_info __initdata zoom2_i2c_bus2_info[] = {
 	{
 		I2C_BOARD_INFO(LV8093_NAME,  LV8093_AF_I2C_ADDR),
 		.platform_data = &zoom2_lv8093_platform_data,
+	},
+#endif
+#if defined(CONFIG_SND_OMAP_SOC_ZOOM_AIC3254) || defined(CONFIG_SND_OMAP_SOC_ZOOM_AIC3254_MODULE)
+	{
+	    I2C_BOARD_INFO("tlv320aic3254", 0x18),
+	},
+#endif
+#if defined(CONFIG_SND_SOC_TLV320AIC3111) || defined(CONFIG_SND_SOC_TLV320AIC3111_MODULE)
+	{
+		I2C_BOARD_INFO(AIC3111_NAME,  AIC3111_I2CSLAVEADDRESS),
 	},
 #endif
 };
@@ -1163,12 +1189,18 @@ static struct map_desc zoom2_io_desc[] __initdata = {
 static void __init omap_zoom2_map_io(void)
 {
 	omap2_set_globals_343x();
+#ifndef CONFIG_SOM3621_REV1_FIX
 	iotable_init(zoom2_io_desc, ARRAY_SIZE(zoom2_io_desc));
+#endif
 	omap2_map_common_io();
 }
 
 #ifdef CONFIG_MACH_OMAP_ZOOM3
+#ifdef CONFIG_ZOOM3_3621
+MACHINE_START(OMAP_ZOOM3, "OMAP ZOOM3621 board")
+#else
 MACHINE_START(OMAP_ZOOM3, "OMAP ZOOM3 board")
+#endif
 #else
 MACHINE_START(OMAP_ZOOM2, "OMAP ZOOM2 board")
 #endif
@@ -1177,6 +1209,7 @@ MACHINE_START(OMAP_ZOOM2, "OMAP ZOOM2 board")
 	 */
 	.phys_io	= ZOOM2_EXT_QUART_PHYS,
 	.io_pg_offst	= ((ZOOM2_EXT_QUART_VIRT) >> 18) & 0xfffc,
+#endif
 	.boot_params	= 0x80000100,
 	.map_io		= omap_zoom2_map_io,
 	.init_irq	= omap_zoom2_init_irq,

@@ -367,6 +367,8 @@ struct fsg_dev {
 	struct wake_lock wake_lock;
 };
 
+static int do_set_config(struct fsg_dev *fsg, u8 new_config);
+
 static inline struct fsg_dev *func_to_dev(struct usb_function *f)
 {
 	return container_of(f, struct fsg_dev, function);
@@ -984,7 +986,7 @@ static int do_write(struct fsg_dev *fsg)
 			 * the bulk-out maxpacket size */
 			bh->outreq->length = bh->bulk_out_intended_length =
 					amount;
-			bh->outreq->short_not_ok = 1;
+                        bh->outreq->short_not_ok = 1 ;
 			start_transfer(fsg, fsg->bulk_out, bh->outreq,
 					&bh->outreq_busy, &bh->state);
 			fsg->next_buffhd_to_fill = bh->next;
@@ -1417,6 +1419,9 @@ static int do_start_stop(struct fsg_dev *fsg)
 	struct lun	*curlun = fsg->curlun;
 	int		loej, start;
 
+	int i;
+	static int bSignalDisconnect = 0;
+
 	/* int immed = fsg->cmnd[1] & 0x01; */
 	loej = fsg->cmnd[4] & 0x02;
 	start = fsg->cmnd[4] & 0x01;
@@ -1424,9 +1429,21 @@ static int do_start_stop(struct fsg_dev *fsg)
 	if (loej) {
 		/* eject request from the host */
 		if (backing_file_is_open(curlun)) {
+			bSignalDisconnect = 1;
 			close_backing_file(fsg, curlun);
 			curlun->unit_attention_data = SS_MEDIUM_NOT_PRESENT;
 		}
+	}
+
+	for (i = 0; i < fsg->nluns; ++i)
+	{
+		if backing_file_is_open(&fsg->luns[i])
+			bSignalDisconnect = 0;
+	}
+
+	if (bSignalDisconnect) {
+		do_set_config(fsg,0);
+		bSignalDisconnect = 0;
 	}
 
 	return 0;
@@ -1536,7 +1553,7 @@ static int throw_away_data(struct fsg_dev *fsg)
 			 * the bulk-out maxpacket size */
 			bh->outreq->length = bh->bulk_out_intended_length =
 					amount;
-			bh->outreq->short_not_ok = 1;
+                        bh->outreq->short_not_ok = 1 ;
 			start_transfer(fsg, fsg->bulk_out, bh->outreq,
 					&bh->outreq_busy, &bh->state);
 			fsg->next_buffhd_to_fill = bh->next;
@@ -2084,7 +2101,7 @@ static int get_next_command(struct fsg_dev *fsg)
 
 	/* Queue a request to read a Bulk-only CBW */
 	set_bulk_out_req_length(fsg, bh, USB_BULK_CB_WRAP_LEN);
-		bh->outreq->short_not_ok = 1;
+        bh->outreq->short_not_ok = 1 ;
 	start_transfer(fsg, fsg->bulk_out, bh->outreq,
 			&bh->outreq_busy, &bh->state);
 

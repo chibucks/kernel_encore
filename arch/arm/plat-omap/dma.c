@@ -295,7 +295,7 @@ void omap_set_dma_transfer_params(int lch, int data_type, int elem_count,
 		val = dma_read(CCR(lch));
 
 		/* DMA_SYNCHRO_CONTROL_UPPER depends on the channel number */
-		val &= ~((3 << 19) | 0x1f);
+		val &= ~((1 << 23) | (3 << 19) | 0x1f);
 		val |= (dma_trigger & ~0x1f) << 14;
 		val |= dma_trigger & 0x1f;
 
@@ -733,13 +733,31 @@ static inline void disable_lnk(int lch)
 static inline void omap2_enable_irq_lch(int lch)
 {
 	u32 val;
+	unsigned long flags;
 
 	if (!cpu_class_is_omap2())
 		return;
 
+	spin_lock_irqsave(&dma_chan_lock, flags);
 	val = dma_read(IRQENABLE_L0);
 	val |= 1 << lch;
 	dma_write(val, IRQENABLE_L0);
+	spin_unlock_irqrestore(&dma_chan_lock, flags);
+}
+
+static inline void omap2_disable_irq_lch(int lch)
+{
+	u32 val;
+	unsigned long flags;
+
+	if (!cpu_class_is_omap2())
+		return;
+
+	spin_lock_irqsave(&dma_chan_lock, flags);
+	val = dma_read(IRQENABLE_L0);
+	val &= ~(1 << lch);
+	dma_write(val, IRQENABLE_L0);
+	spin_unlock_irqrestore(&dma_chan_lock, flags);
 }
 
 int omap_request_dma(int dev_id, const char *dev_name,
@@ -826,18 +844,11 @@ void omap_free_dma(int lch)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&dma_chan_lock, flags);
 	if (dma_chan[lch].dev_id == -1) {
 		pr_err("omap_dma: trying to free unallocated DMA channel %d\n",
 		       lch);
-		spin_unlock_irqrestore(&dma_chan_lock, flags);
 		return;
 	}
-
-	dma_chan[lch].dev_id = -1;
-	dma_chan[lch].next_lch = -1;
-	dma_chan[lch].callback = NULL;
-	spin_unlock_irqrestore(&dma_chan_lock, flags);
 
 	if (cpu_class_is_omap1()) {
 		/* Disable all DMA interrupts for the channel. */
@@ -847,11 +858,7 @@ void omap_free_dma(int lch)
 	}
 
 	if (cpu_class_is_omap2()) {
-		u32 val;
-		/* Disable interrupts */
-		val = dma_read(IRQENABLE_L0);
-		val &= ~(1 << lch);
-		dma_write(val, IRQENABLE_L0);
+		omap2_disable_irq_lch(lch);
 
 		/* Clear the CSR register and IRQ status register */
 		dma_write(OMAP2_DMA_CSR_CLEAR_MASK, CSR(lch));
@@ -867,6 +874,12 @@ void omap_free_dma(int lch)
 		dma_write(0, CCR(lch));
 		omap_clear_dma(lch);
 	}
+
+	spin_lock_irqsave(&dma_chan_lock, flags);
+	dma_chan[lch].dev_id = -1;
+	dma_chan[lch].next_lch = -1;
+	dma_chan[lch].callback = NULL;
+	spin_unlock_irqrestore(&dma_chan_lock, flags);
 }
 EXPORT_SYMBOL(omap_free_dma);
 
@@ -968,6 +981,15 @@ void omap_start_dma(int lch)
 {
 	u32 l;
 
+	/*
+	 * The CPC/CDAC register needs to be initialized to zero
+	 * before starting dma transfer.
+	 */
+	if (cpu_is_omap15xx())
+		dma_write(0, CPC(lch));
+	else
+		dma_write(0, CDAC(lch));
+
 	if (!omap_dma_in_1510_mode() && dma_chan[lch].next_lch != -1) {
 		int next_lch, cur_lch;
 		char dma_chan_link_map[OMAP_DMA4_LOGICAL_DMA_CH_COUNT];
@@ -1020,6 +1042,17 @@ EXPORT_SYMBOL(omap_start_dma);
 void omap_stop_dma(int lch)
 {
 	u32 l;
+	unsigned long flags;
+
+	/* Disable all interrupts on the channel */
+	if (cpu_class_is_omap1())
+		dma_write(0, CICR(lch));
+
+	spin_lock_irqsave(&dma_chan_lock, flags);
+	l = dma_read(CCR(lch));
+	l &= ~OMAP_DMA_CCR_EN;
+	dma_write(l, CCR(lch));
+	spin_unlock_irqrestore(&dma_chan_lock, flags);
 
 	if (!omap_dma_in_1510_mode() && dma_chan[lch].next_lch != -1) {
 		int next_lch, cur_lch = lch;
@@ -1038,17 +1071,7 @@ void omap_stop_dma(int lch)
 			next_lch = dma_chan[cur_lch].next_lch;
 			cur_lch = next_lch;
 		} while (next_lch != -1);
-
-		return;
 	}
-
-	/* Disable all interrupts on the channel */
-	if (cpu_class_is_omap1())
-		dma_write(0, CICR(lch));
-
-	l = dma_read(CCR(lch));
-	l &= ~OMAP_DMA_CCR_EN;
-	dma_write(l, CCR(lch));
 
 	dma_chan[lch].flags &= ~OMAP_DMA_ACTIVE;
 }
@@ -1057,9 +1080,13 @@ EXPORT_SYMBOL(omap_stop_dma);
 void omap_disable_lch(int lch)
 {
 	u32 l;
+	unsigned long flags;
+
+	spin_lock_irqsave(&dma_chan_lock, flags);
 	l = dma_read(CCR(lch));
 	l &= ~OMAP_DMA_CCR_EN;
 	dma_write(l, CCR(lch));
+	spin_unlock_irqrestore(&dma_chan_lock, flags);
 }
 EXPORT_SYMBOL(omap_disable_lch);
 
@@ -1226,7 +1253,7 @@ void omap_dma_unlink_lch(int lch_head, int lch_queue)
 	}
 
 	if ((dma_chan[lch_head].flags & OMAP_DMA_ACTIVE) ||
-	    (dma_chan[lch_head].flags & OMAP_DMA_ACTIVE)) {
+	    (dma_chan[lch_queue].flags & OMAP_DMA_ACTIVE)) {
 		printk(KERN_ERR "omap_dma: You need to stop the DMA channels "
 		       "before unlinking\n");
 		dump_stack();
@@ -2431,12 +2458,15 @@ EXPORT_SYMBOL(omap_dma_global_context_restore);
 void omap_dma_disable_irq(int lch)
 {
 	u32 val;
+	unsigned long flags;
 
 	if (cpu_class_is_omap2()) {
 		/* Disable interrupts */
+		spin_lock_irqsave(&dma_chan_lock, flags);
 		val = dma_read(IRQENABLE_L0);
 		val &= ~(1 << lch);
 		dma_write(val, IRQENABLE_L0);
+		spin_unlock_irqrestore(&dma_chan_lock, flags);
 	}
 }
 
@@ -2525,6 +2555,9 @@ static int __init omap_init_dma(void)
 
 	for (ch = 0; ch < dma_chan_count; ch++) {
 		omap_clear_dma(ch);
+		if (cpu_class_is_omap2())
+			omap2_disable_irq_lch(ch);
+
 		dma_chan[ch].dev_id = -1;
 		dma_chan[ch].next_lch = -1;
 

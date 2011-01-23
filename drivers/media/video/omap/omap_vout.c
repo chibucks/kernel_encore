@@ -236,6 +236,40 @@ const static struct v4l2_fmtdesc omap_formats[] = {
 
 #define NUM_OUTPUT_FORMATS (sizeof(omap_formats)/sizeof(omap_formats[0]))
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void omap_vout_early_suspend(struct early_suspend *handler)
+{
+	unsigned long flags;
+    struct timeval timevalue;
+	struct omap_vout_device *vout = container_of(handler, struct omap_vout_device, early_suspend);
+
+	spin_lock_irqsave(&vout->vbq_lock, flags);
+
+	vout->screen_on = 0;
+
+    if (vout->cur_frm && 
+        vout->cur_frm->state == VIDEOBUF_ACTIVE) {
+        do_gettimeofday(&timevalue);
+        vout->cur_frm->ts = timevalue;
+        vout->cur_frm->state = VIDEOBUF_DONE;
+        wake_up_interruptible(&vout->cur_frm->done);
+        vout->cur_frm = vout->next_frm;
+	}
+
+	spin_unlock_irqrestore(&vout->vbq_lock, flags);
+}
+
+static void omap_vout_late_resume(struct early_suspend *handler)
+{
+    unsigned long flags;
+	struct omap_vout_device *vout = container_of(handler, struct omap_vout_device, early_suspend);
+
+    spin_lock_irqsave(&vout->vbq_lock, flags);
+	vout->screen_on = 1;
+    spin_unlock_irqrestore(&vout->vbq_lock, flags);
+}
+#endif /* CONFIG_HAS_EARLYSUSPEND */
+
 /* Allocate buffers */
 static unsigned long omap_vout_alloc_buffer(u32 buf_size, u32 *phys_addr)
 {
@@ -1198,8 +1232,6 @@ static int omap_vout_buffer_prepare(struct videobuf_queue *q,
 		/*set dma source burst mode for VRFB */
 		omap_set_dma_src_burst_mode(vout->vrfb_dma_tx.dma_ch,
 				OMAP_DMA_DATA_BURST_16);
-		/* enable src data packing */
-		omap_set_dma_src_data_pack(vout->vrfb_dma_tx.dma_ch, 1);
 
 		/* dest_port required only for OMAP1 */
 		omap_set_dma_dest_params(vout->vrfb_dma_tx.dma_ch, 0,
@@ -1209,9 +1241,6 @@ static int omap_vout_buffer_prepare(struct videobuf_queue *q,
 		/*set dma dest burst mode for VRFB */
 		omap_set_dma_dest_burst_mode(vout->vrfb_dma_tx.dma_ch,
 				OMAP_DMA_DATA_BURST_16);
-		/* enable dest data packing */
-		omap_set_dma_dest_data_pack(vout->vrfb_dma_tx.dma_ch, 1);
-
 		omap_dma_set_global_params(DMA_DEFAULT_ARB_RATE, 0x20, 0);
 
 		omap_start_dma(vout->vrfb_dma_tx.dma_ch);
@@ -2139,6 +2168,10 @@ static int vidioc_dqbuf(struct file *file, void *fh,
 
 	if (!vout->streaming)
 		return -EINVAL;
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	if(!vout->screen_on)
+		return -EINVAL;
+#endif
 
 	if (file->f_flags & O_NONBLOCK)
 		/* Call videobuf_dqbuf for non blocking mode */
@@ -2718,6 +2751,16 @@ error:
 	return r;
 
 success:
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	vout->early_suspend.level   = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 2;
+	vout->early_suspend.suspend = omap_vout_early_suspend;
+	vout->early_suspend.resume  = omap_vout_late_resume;
+	register_early_suspend(&vout->early_suspend);
+
+    vout->screen_on = 1;
+#endif
+
 	printk(KERN_INFO VOUT_NAME ": registered and initialized\
 			video device %d [v4l2]\n", vfd->minor);
 	if (k == (pdev->num_resources - 1))
@@ -2873,6 +2916,12 @@ void omap_vout_isr(void *arg, unsigned int irqstatus)
 	struct omap_overlay *ovl;
 	struct omap_dss_device *cur_display;
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+    if (!vout->screen_on) {
+        return;
+    }
+#endif
+
 	if (!vout->streaming)
 		return;
 
@@ -3021,6 +3070,9 @@ static void omap_vout_cleanup_device(struct omap_vout_device *vout)
 			 * The unregister function will release the video_device
 			 * struct as well as unregistering it.
 			 */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+			unregister_early_suspend(&vout->early_suspend);
+#endif
 			video_unregister_device(vfd);
 		}
 	}

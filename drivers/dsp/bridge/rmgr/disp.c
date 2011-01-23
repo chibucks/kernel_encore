@@ -735,8 +735,11 @@ static DSP_STATUS SendMessage(struct DISP_OBJECT *hDisp, u32 dwTimeout,
 		}
 	}
 	/* Get the reply */
-	if (DSP_FAILED(status))
+	if (DSP_FAILED(status)) {
+		(*pIntfFxns->pfnChnlIdle) (hChnl, dwTimeout, 1);
+		(*pIntfFxns->pfnChnlGetIOC) (hChnl, dwTimeout, &chnlIOC);
 		goto func_end;
+	}
 
 	hChnl = hDisp->hChnlFromDsp;
 	ulBytes = REPLYSIZE;
@@ -761,6 +764,10 @@ static DSP_STATUS SendMessage(struct DISP_OBJECT *hDisp, u32 dwTimeout,
 				status = DSP_EFAIL;
 			}
 		}
+	}
+	if (DSP_FAILED(status)) {
+		(*pIntfFxns->pfnChnlIdle) (hChnl, dwTimeout, 1);
+		(*pIntfFxns->pfnChnlGetIOC) (hChnl, dwTimeout, &chnlIOC);
 	}
 func_end:
 	return status;

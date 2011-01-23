@@ -7,5 +7,6 @@ obj-$(CONFIG_PANEL_N800) += panel-n800.o
 
 obj-$(CONFIG_PANEL_ACX565AKM) += panel-acx565akm.o
 obj-$(CONFIG_PANEL_ZOOM2) += panel-zoom2.o
+obj-$(CONFIG_PANEL_BOXER) += panel-boxer.o
 obj-$(CONFIG_SIL9022) += sil9022.o
 
