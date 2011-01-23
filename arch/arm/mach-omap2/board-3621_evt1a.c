@@ -1425,7 +1425,7 @@ static void __init omap_boxer_map_io(void)
 	omap2_map_common_io();
 }
  
-MACHINE_START(OMAP3621_EVT1A, "OMAP3621 Encore board")
+MACHINE_START(OMAP3621_EVT1A, "encore")
 	/* phys_io is only used for DEBUG_LL early printing.  The Boxer's
 	 * console is on an external quad UART sitting at address 0x10000000
 	 */
